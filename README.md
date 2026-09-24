@@ -1,16 +1,19 @@
 # flask-api-builder
 
-Convention-based RESTful CRUD API endpoints for Flask + SQLAlchemy + Marshmallow:
+Convention-based RESTful CRUD API endpoints & Marshmallow schema generator for Flask + SQLAlchemy:
 
-- **Automatic CRUD endpoints** for collection + item routes (`list`, `create`, `retrieve`, `update`, `patch`, `delete`).
-- **Filtering, search, sorting, and pagination** out-of-the-box.
-- **Nested routes & Singletons** (`view_args`, `view_args_ref`, `singleton=True`).
-- **4-tier customization**:
-  - `overrides={action: handler}` — replace action logic.
-  - `schemas={action: schema}` — per-action read/write shapes.
-  - `responses={action: handler}` — shape success responses globally & locally (first-class `'paginated'` and `'collection'` support).
-  - `errors={code|alias: handler}` — shape errors globally & locally (first-class `422` validation support, status code inferred automatically).
-- **Hooks & Decorators**: `before_create`, `after_create`, `before_update`, `after_update`, `before_delete`, `after_delete`, and method/resource decorators.
+- **`ApiBuilder`**: Automatic CRUD endpoints for collection + item routes (`list`, `create`, `retrieve`, `update`, `patch`, `delete`).
+  - Filtering, search, sorting, and pagination out-of-the-box.
+  - MethodView architecture with standard endpoint naming (`api.<endpoint>`, `api.<endpoint>_item`).
+  - Nested routes & Singletons (`view_args`, `view_args_ref`, `singleton=True`).
+  - **Custom endpoints & logic**: `extra_methods`, `extra_actions`, and `@builder.action(...)` decorator.
+  - **4-tier customization**: `overrides`, `schemas`, `responses` (envelopes), `errors` (formatters).
+- **`SchemaBuilder`**: Declarative `marshmallow-sqlalchemy` schema generator from SQLAlchemy models:
+  - Automatic relationship discovery & nesting (`auto_relationships=True` or `relationships={'only': ...}`).
+  - **Automatic cardinality detection**: Uses SQLAlchemy `relationship.uselist` under the hood to automatically configure single vs. list (`many=True`) relationships without manual flags.
+  - Per-field tuning via `rel_fields={'field': {'only': ..., 'exclude': ..., 'write': ..., 'depth': ...}}`.
+  - Computed output fields via `methods={'key': lambda obj: ...}`.
+  - Optional WTForms-Alchemy integration via `schema.build_form()`.
 
 ## Install
 
@@ -32,15 +35,15 @@ flask-api-builder @ git+https://github.com/DanielKEdozie/flask-api-builder.git@v
 from flask import Flask, Blueprint
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
-from flask_api_builder import FlaskApiBuilder, ApiBuilder
+from flask_api_builder import FlaskApiBuilder, ApiBuilder, SchemaBuilder
 
 app = Flask(__name__)
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 
-# Initialize global error & response envelopes (no ma needed!):
+# Initialize extension with global response and error envelopes:
 api_ext = FlaskApiBuilder()
-api_ext.init_app(app, db=db, responses={
+api_ext.init_app(app, db=db, ma=ma, responses={
     'paginated': lambda data, ctx: {
         'data': data['items'],
         'pagination': {
@@ -55,6 +58,23 @@ api_ext.init_app(app, db=db, responses={
     404: lambda err, ctx: {'success': False, 'message': 'Not found'},
 })
 
+# 1. Generate Schema with automatic relationship discovery:
+CategorySchema = SchemaBuilder(
+    Category,
+    auto_relationships=True,
+    depth=1,
+    rel_fields={
+        'products': {'only': ('id', 'name', 'price'), 'write': False}
+    }
+)
+
+ProductSchema = SchemaBuilder(
+    Product,
+    relationships={'only': ('category',)},
+    rel_fields={'category': {'only': ('id', 'name')}},
+)
+
+# 2. Build CRUD API Endpoints:
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 ApiBuilder(
@@ -67,7 +87,7 @@ ApiBuilder(
     search_fields=('name', 'sku'),
     sort_field='name',
     paginate=True,
-    # Custom RPC/action endpoints:
+    # Custom RPC / action endpoints:
     extra_actions={
         'duplicate': lambda item, builder: {'duplicated_id': item.id},
         'stats': {
@@ -103,6 +123,7 @@ def publish(publish_id=None):
 products = ApiBuilder(
     api,
     Product,
+    schema=ProductSchema,
     endpoint='products',
     extra_methods={
         'publish': {
@@ -122,7 +143,6 @@ products = ApiBuilder(
 # Option B: Register dynamically with decorators
 @products.action('archive', path='/<publish_id>/archive', methods=['POST'])
 def archive_product(builder, publish_id=None):
-    # Access builder.session and builder.model directly:
     item = builder.session.get(builder.model, int(publish_id))
     item.status = 'archived'
     builder.session.commit()

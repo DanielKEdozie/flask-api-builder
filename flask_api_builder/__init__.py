@@ -1,18 +1,20 @@
 """flask-api-builder — convention-based CRUD endpoints for SQLAlchemy and Marshmallow.
 
-Exposes :class:`ApiBuilder` and the companion Flask extension :class:`FlaskApiBuilder`::
+Exposes :class:`ApiBuilder`, :class:`SchemaBuilder`, and :class:`FlaskApiBuilder`::
 
     from flask import Flask, Blueprint
     from flask_sqlalchemy import SQLAlchemy
     from flask_marshmallow import Marshmallow
-    from flask_api_builder import FlaskApiBuilder, ApiBuilder
+    from flask_api_builder import FlaskApiBuilder, ApiBuilder, SchemaBuilder
 
     app = Flask(__name__)
     db = SQLAlchemy(app)
     ma = Marshmallow(app)
 
     api_ext = FlaskApiBuilder()
-    api_ext.init_app(app, db=db)
+    api_ext.init_app(app, db=db, ma=ma)
+
+    ProductSchema = SchemaBuilder(Product, relationships={'only': ('category',)})
 
     api_bp = Blueprint('api', __name__, url_prefix='/api')
     ApiBuilder(api_bp, Product, ProductSchema, endpoint='products')
@@ -26,10 +28,12 @@ from .extension import (
     resolve_session,
 )
 from .builder import ApiBuilder
+from .schema_builder import SchemaBuilder
 from .api_views import CollectionView, ItemView, SingletonView
 
 __all__ = [
     'ApiBuilder',
+    'SchemaBuilder',
     'CollectionView',
     'ItemView',
     'SingletonView',

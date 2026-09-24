@@ -5,21 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "flask-api-builder"
 version = "2.0.0"
-description = "Convention-based CRUD API builder for Flask, SQLAlchemy, and Marshmallow."
+description = "Convention-based CRUD API and Schema builder for Flask, SQLAlchemy, and Marshmallow."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "BuyAutoParts" }]
 dependencies = [
     "flask",
     "flask-sqlalchemy",
     "flask-marshmallow",
     "marshmallow",
+    "marshmallow-sqlalchemy",
     "sqlalchemy",
     "werkzeug",
 ]
 
 [project.optional-dependencies]
+forms = ["wtforms-alchemy"]
 dev = ["pytest"]
 
 [tool.setuptools.packages.find]
