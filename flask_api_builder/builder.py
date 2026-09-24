@@ -409,25 +409,17 @@ class ApiBuilder:
         return resolve_session(self._db_session)
 
     def _endpoint_for(self, action, resource, method):
-        """Resolve endpoint suffix via ``method_endpoints`` (v2).
+        """Resolve endpoint suffix via ``method_endpoints``.
 
-        Same candidate chain as ``overrides`` (``METHOD_resource``,
-        ``METHOD_action``, ``action_resource``, ``action``, ``resource``,
-        ``METHOD``). Defaults to the canonical action name
-        (``list/create/retrieve/update/patch/delete``); ``PATCH`` without a
-        ``patch`` entry falls back to ``update``. ``detail`` is accepted as
-        a legacy alias for ``retrieve``. Final Flask endpoint is
-        ``'{endpoint}_{suffix}'`` with unsafe chars replaced by ``_``.
+        When ``method_endpoints`` is provided, it customises the endpoint suffix
+        (e.g. ``method_endpoints={'retrieve': 'detail'}`` -> ``'{endpoint}_detail'``).
+        When omitted or not matching, default canonical action naming is used:
+        ``list``, ``create``, ``retrieve``, ``update``, ``patch``, ``delete``.
         """
         raw = self._resolve_action_value(
             self.method_endpoints, action, resource, method
         )
-        suffix = str(raw or action or resource or method or '').strip().lower()
-        if not suffix:
-            suffix = 'action'
-        if suffix == 'detail':
-            # Documented legacy alias; canonical is 'retrieve'.
-            suffix = 'retrieve'
+        suffix = str(raw if raw is not None else (action or resource or method or 'action')).strip().lower()
         suffix = re.sub(r'[^a-z0-9_]+', '_', suffix).strip('_') or 'action'
         return '{}_{}'.format(self.endpoint, suffix)
 
@@ -505,17 +497,6 @@ class ApiBuilder:
                 if method in self.methods:
                     _add(rule, SingletonView, action, resource, method, 'singleton')
             _flush()
-            # Legacy v1 endpoint alias for production backward compatibility
-            legacy_singleton = '{}_singleton'.format(self.endpoint)
-            active_methods = [m for _, _, m in plan if m in self.methods]
-            if active_methods:
-                wrapped, methods = _wrap(
-                    SingletonView, legacy_singleton, 'singleton', 'singleton', active_methods
-                )
-                self.app_or_bp.add_url_rule(
-                    rule, endpoint=legacy_singleton, view_func=wrapped,
-                    methods=methods, strict_slashes=False,
-                )
             self._register_extra_actions(view_suffix)
             return
 
@@ -546,27 +527,6 @@ class ApiBuilder:
         if 'DELETE' in self.methods:
             _add(item_rule, ItemView, 'delete', 'item', 'DELETE', 'detail')
         _flush()
-        # Legacy v1 endpoint aliases for production backward compatibility
-        col_methods = self.methods.intersection({'GET', 'POST'})
-        if col_methods:
-            legacy_col = '{}_collection'.format(self.endpoint)
-            wrapped, methods = _wrap(
-                CollectionView, legacy_col, 'collection', 'collection', col_methods
-            )
-            self.app_or_bp.add_url_rule(
-                collection_rule, endpoint=legacy_col, view_func=wrapped,
-                methods=methods, strict_slashes=False,
-            )
-        item_methods = self.methods.intersection({'GET', 'PUT', 'PATCH', 'DELETE'})
-        if item_methods:
-            legacy_detail = '{}_detail'.format(self.endpoint)
-            wrapped, methods = _wrap(
-                ItemView, legacy_detail, 'item', 'detail', item_methods
-            )
-            self.app_or_bp.add_url_rule(
-                item_rule, endpoint=legacy_detail, view_func=wrapped,
-                methods=methods, strict_slashes=False,
-            )
         self._register_extra_actions(view_suffix)
 
     def _wrap_view_errors(self, view_func, resource):
@@ -972,12 +932,24 @@ class ApiBuilder:
         return self._resolve_action_value(self.overrides, action, resource, method)
 
     def _merged_responses(self):
-        """Global ``FlaskUtility`` responses merged under per-builder ones."""
+        """Global extension responses merged under per-builder ones.
+        Supports both 'paginated' and 'pagination' keys interchangeably.
+        """
         merged = {}
         for key, value in dict(resolve_responses() or {}).items():
-            merged[_normalize_action_key(key)] = value
+            norm_key = _normalize_action_key(key)
+            merged[norm_key] = value
+            if norm_key == 'pagination':
+                merged.setdefault('paginated', value)
+            elif norm_key == 'paginated':
+                merged.setdefault('pagination', value)
         for key, value in dict(self.responses or {}).items():
-            merged[_normalize_action_key(key)] = value
+            norm_key = _normalize_action_key(key)
+            merged[norm_key] = value
+            if norm_key == 'pagination':
+                merged['paginated'] = value
+            elif norm_key == 'paginated':
+                merged['pagination'] = value
         return merged
 
     def _has_response_for(self, action, resource, method, extra_candidates=()):
@@ -1547,7 +1519,7 @@ class ApiBuilder:
         return self._apply_response(
             action, dumped, 200, route_values,
             resource='collection', method=method,
-            extra_candidates=('paginated', 'list_paginated'),
+            extra_candidates=('paginated', 'pagination', 'list_paginated', 'list_pagination'),
         )
 
     def do_create(self, route_values=None, method='POST'):

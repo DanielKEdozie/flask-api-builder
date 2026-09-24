@@ -79,7 +79,32 @@ def action_candidates(action, resource, method, endpoint, extra_candidates=()):
         resource_norm = 'item'
     action_norm = (action or '').lower()
     endpoint_norm = (endpoint or '')
-    candidates = list(extra_candidates or ())
+
+    # Expand extra candidates with alias variations (e.g. pagination <-> paginated)
+    expanded_extras = []
+    for cand in (extra_candidates or ()):
+        if not cand:
+            continue
+        cand_str = str(cand)
+        cand_lower = cand_str.lower()
+        if cand_str not in expanded_extras:
+            expanded_extras.append(cand_str)
+        if cand_lower == 'paginated':
+            if 'pagination' not in expanded_extras:
+                expanded_extras.append('pagination')
+        elif cand_lower == 'pagination':
+            if 'paginated' not in expanded_extras:
+                expanded_extras.append('paginated')
+        elif 'paginated' in cand_lower:
+            alt = cand_lower.replace('paginated', 'pagination')
+            if alt not in expanded_extras:
+                expanded_extras.append(alt)
+        elif 'pagination' in cand_lower:
+            alt = cand_lower.replace('pagination', 'paginated')
+            if alt not in expanded_extras:
+                expanded_extras.append(alt)
+
+    candidates = list(expanded_extras)
     candidates.extend([
         '{}_{}'.format(method_upper, resource_norm),
         '{}_{}'.format(method_lower, resource_norm),

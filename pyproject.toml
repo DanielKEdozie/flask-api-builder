@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flask-api-builder"
-version = "2.0.0"
+version = "2.1.0"
 description = "Convention-based CRUD API and Schema builder for Flask, SQLAlchemy, and Marshmallow."
 readme = "README.md"
 requires-python = ">=3.10"
