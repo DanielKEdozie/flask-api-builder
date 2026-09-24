@@ -34,6 +34,45 @@ def app_and_db():
     return app, db, ma, Item, ItemSchema
 
 
+def test_resource_name_support(app_and_db):
+    app, db, ma, Item, ItemSchema = app_and_db
+
+    builder = ApiBuilder(
+        app,
+        Item,
+        ItemSchema,
+        resource_name="products",
+    )
+
+    assert builder.resource_name == "products"
+    assert builder.endpoint == "products"
+    assert builder.url_prefix == "/products"
+
+    endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
+    assert "products_list" in endpoints
+    assert "products_create" in endpoints
+    assert "products_retrieve" in endpoints
+
+
+def test_legacy_endpoint_alias_still_works(app_and_db):
+    app, db, ma, Item, ItemSchema = app_and_db
+
+    builder = ApiBuilder(
+        app,
+        Item,
+        ItemSchema,
+        endpoint="legacy_items",
+    )
+
+    assert builder.resource_name == "legacy_items"
+    assert builder.endpoint == "legacy_items"
+    assert builder.url_prefix == "/legacy_items"
+
+    endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
+    assert "legacy_items_list" in endpoints
+    assert "legacy_items_retrieve" in endpoints
+
+
 def test_default_methodview_endpoints_no_legacy_aliases(app_and_db):
     app, db, ma, Item, ItemSchema = app_and_db
 
@@ -41,7 +80,7 @@ def test_default_methodview_endpoints_no_legacy_aliases(app_and_db):
         app,
         Item,
         ItemSchema,
-        endpoint="items",
+        resource_name="items",
         url_prefix="/items",
     )
 
@@ -68,7 +107,7 @@ def test_custom_method_endpoints(app_and_db):
         app,
         Item,
         ItemSchema,
-        endpoint="widgets",
+        resource_name="widgets",
         url_prefix="/widgets",
         method_endpoints={
             "retrieve": "detail",
@@ -96,7 +135,7 @@ def test_responses_accepts_pagination_key(app_and_db):
         app,
         Item,
         ItemSchema,
-        endpoint="pag_items",
+        resource_name="pag_items",
         url_prefix="/pag-items",
         responses={
             "pagination": lambda data: {
@@ -130,7 +169,7 @@ def test_responses_accepts_paginated_key(app_and_db):
         app,
         Item,
         ItemSchema,
-        endpoint="paged_items",
+        resource_name="paged_items",
         url_prefix="/paged-items",
         responses={
             "paginated": lambda data: {

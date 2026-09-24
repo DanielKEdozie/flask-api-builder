@@ -26,7 +26,7 @@ pip install git+https://github.com/DanielKEdozie/flask-api-builder.git
 Or in `requirements.txt`:
 
 ```text
-flask-api-builder @ git+https://github.com/DanielKEdozie/flask-api-builder.git@v2.0.0
+flask-api-builder @ git+https://github.com/DanielKEdozie/flask-api-builder.git@v2.2.0
 ```
 
 ## Quick Start
@@ -81,7 +81,7 @@ ApiBuilder(
     api_bp,
     model=Product,
     schema=ProductSchema,
-    endpoint='products',
+    resource_name='products',
     url_prefix='/products',
     filter_fields=('category_id', 'is_active'),
     search_fields=('name', 'sku'),
@@ -124,7 +124,7 @@ products = ApiBuilder(
     api,
     Product,
     schema=ProductSchema,
-    endpoint='products',
+    resource_name='products',
     extra_methods={
         'publish': {
             'methods': ['POST', 'GET'],

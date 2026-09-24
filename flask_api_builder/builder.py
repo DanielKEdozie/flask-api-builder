@@ -261,6 +261,7 @@ class ApiBuilder:
         app_or_bp,
         model,
         schema=None,
+        resource_name=None,
         endpoint=None,
         url_prefix=None,
         pk_name='id',
@@ -299,8 +300,21 @@ class ApiBuilder:
         # Explicit session wins; otherwise resolve through the FlaskUtility
         # extension bound to the current app (init_app(app, db=db)).
         self._db_session = db_session
-        self.endpoint = endpoint or model.__name__.lower()
-        self.url_prefix = url_prefix if url_prefix is not None else '/{}'.format(self.endpoint)
+        resolved_name = (
+            resource_name
+            if resource_name is not None
+            else endpoint
+        )
+        if resolved_name is None:
+            resolved_name = getattr(type(self), 'resource_name', None)
+        if resolved_name is None:
+            resolved_name = getattr(type(self), 'endpoint', None)
+        if resolved_name is None:
+            resolved_name = model.__name__.lower()
+
+        self.resource_name = resolved_name
+        self.endpoint = resolved_name
+        self.url_prefix = url_prefix if url_prefix is not None else '/{}'.format(self.resource_name)
         self.pk_name = pk_name
         self.methods = {method.upper() for method in (methods or ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])}
         self.singleton = (
